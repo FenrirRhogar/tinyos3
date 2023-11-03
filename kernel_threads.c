@@ -13,6 +13,7 @@ TCB* create_thread(Task task, int argl, void* args) {
     if (new_thread == NULL) {
         return NULL;  // Failed to allocate memory for TCB
     }
+    geiaa
 
     // Initialize the fields of the TCB
     new_thread->tid = generate_unique_tid();  // Implement your own Tid generation logic
