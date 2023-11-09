@@ -59,9 +59,30 @@ typedef struct process_control_block {
                              @c WaitChild() */
 
   FCB* FIDT[MAX_FILEID];  /**< @brief The fileid table of the process */
+  rlnode ptcb_list;
+  int thread_count;
 
 } PCB;
 
+
+typedef struct process_thread_control_block {
+  TCB* tcb;               /**< @brief Pointer used for connecting a PTCB to a TCB */
+
+  Task task;              /**< @brief The task PTCB is going to execute */
+  int argl;               /**< @brief The main thread's argument length */
+  void* args;             /**< @brief The main thread's argument string */
+
+  int exitval;            /**< @brief The exit value of the process */
+
+  int exited;             /**< @brief Shows if the PTCB is exited */
+  int detached;           /**< @brief hows if the PTCB is detached */
+  CondVar ecit_cv;        /**< @brief Condition variable */
+
+  int refcount;           
+
+  rlnode ptcb_list_node;  /**< @brief Lists of nodes of PTCB */
+  
+} PTCB;
 
 /**
   @brief Initialize the process table.
