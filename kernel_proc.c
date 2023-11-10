@@ -128,6 +128,17 @@ void start_main_thread()
   Exit(exitval);
 }
 
+void start_main_thread_process()
+{
+  int exitval;
+
+  Task call = CURTHREAD->ptcb->task;
+  int argl = CURTHREAD->argl;
+  void* args = CURTHREAD->args;
+
+  exitval = call(argl, args);
+  ThreadExit(exitval);
+}
 
 /*
 	System call to create a new process.

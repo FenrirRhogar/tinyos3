@@ -9,7 +9,29 @@
 
 Tid_t sys_CreateThread(Task task, int argl, void* args) 
 {
-    return NOTHREAD;
+    /* Initialize and return a new TCB */
+    PCB* pcb = CURPROC;
+    tcb = spawn_thread(pcb, start_main_thread_process);
+    /*  and acquire a new PTCB */
+    PTCB* ptcb;
+    ptcb = (PTCB*)malloc(sizeof(PTCB)); /* Memory allocation for the new PTCB */
+    
+    /* Connect PTCB to TCB and the opposite */
+    ptcb->tcb = tcb;
+    tcb->ptcb = ptcb;
+
+    /* Initialize PTCB */
+    ptcb->task = task;
+    ptcb->argl = argl;
+    ptcb->args = args;
+    ptcb->exited = 0;
+    ptcb->detached = 0;
+    ptcb->exit_cv = COND_INIT;
+    ptcb->refcount = 0;
+    rlnode_init(&ptcb->ptcb_node_list, ptcb); /* Initialize node list with PTCB being the node key */
+    
+
+    return (Tid_t) ptcb;
 }
 
 
@@ -18,7 +40,7 @@ Tid_t sys_CreateThread(Task task, int argl, void* args)
  */
 Tid_t sys_ThreadSelf()
 {
-	return (Tid_t) cur_thread();
+	return (Tid_t) cur_thread()->ptcb;
 }
 
 /**

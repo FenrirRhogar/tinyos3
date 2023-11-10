@@ -80,7 +80,7 @@ typedef struct process_thread_control_block {
 
   int refcount;           
 
-  rlnode ptcb_list_node;  /**< @brief Lists of nodes of PTCB */
+  rlnode ptcb_node_list;  /**< @brief Lists of nodes of PTCB */
   
 } PTCB;
 
