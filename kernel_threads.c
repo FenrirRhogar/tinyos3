@@ -29,7 +29,9 @@ Tid_t sys_CreateThread(Task task, int argl, void* args)
     ptcb->exit_cv = COND_INIT;
     ptcb->refcount = 0;
     rlnode_init(&ptcb->ptcb_node_list, ptcb); /* Initialize node list with PTCB being the node key */
-    
+    rlist_push_back(&pcb->ptcb_list, &ptcb->ptcb_node_list);
+    pcb->thread_count++;
+    wakeup(tcb);
 
     return (Tid_t) ptcb;
 }
