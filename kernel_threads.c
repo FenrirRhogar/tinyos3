@@ -11,6 +11,7 @@ Tid_t sys_CreateThread(Task task, int argl, void* args)
 {
     /* Initialize and return a new TCB */
     PCB* pcb = CURPROC;
+    TCB* tcb;
     tcb = spawn_thread(pcb, start_main_thread_process);
     /*  and acquire a new PTCB */
     PTCB* ptcb;

@@ -194,6 +194,7 @@ Pid_t sys_Exec(Task call, int argl, void* args)
    */
   if(call != NULL) {
     newproc->main_thread = spawn_thread(newproc, start_main_thread);
+    
     wakeup(newproc->main_thread);
   }
 
