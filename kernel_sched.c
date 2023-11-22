@@ -11,9 +11,8 @@
 #include <valgrind/valgrind.h>
 #endif
 
-
 /********************************************
-	
+
 	Core table and CCB-related declarations.
 
  *********************************************/
@@ -21,35 +20,32 @@
 /* Core control blocks */
 CCB cctx[MAX_CORES];
 
-
-/* 
-	The current core's CCB. This must only be used in a 
+/*
+	The current core's CCB. This must only be used in a
 	non-preemtpive context.
  */
 #define CURCORE (cctx[cpu_core_id])
 
-/* 
-	The current thread. This is a pointer to the TCB of the thread 
+/*
+	The current thread. This is a pointer to the TCB of the thread
 	currently executing on this core.
 
 	This must only be used in non-preemptive context.
 */
 #define CURTHREAD (CURCORE.current_thread)
 
-
 /*
 	This can be used in the preemptive context to
 	obtain the current thread.
  */
-TCB* cur_thread()
+TCB *cur_thread()
 {
-  int preempt = preempt_off;
-  TCB* cur = CURTHREAD;
-  if(preempt) preempt_on;
-  return cur;
+	int preempt = preempt_off;
+	TCB *cur = CURTHREAD;
+	if (preempt)
+		preempt_on;
+	return cur;
 }
-
-
 
 /*
    The thread layout.
@@ -94,7 +90,7 @@ Mutex active_threads_spinlock = MUTEX_INIT;
 
 #define THREAD_SIZE (THREAD_TCB_SIZE + THREAD_STACK_SIZE)
 
-//#define MMAPPED_THREAD_MEM
+// #define MMAPPED_THREAD_MEM
 #ifdef MMAPPED_THREAD_MEM
 
 /*
@@ -102,12 +98,12 @@ Mutex active_threads_spinlock = MUTEX_INIT;
   "sentinel page", and change access to PROT_NONE, so that a stack overflow
   is detected as seg.fault.
  */
-void free_thread(void* ptr, size_t size) { CHECK(munmap(ptr, size)); }
+void free_thread(void *ptr, size_t size) { CHECK(munmap(ptr, size)); }
 
-void* allocate_thread(size_t size)
+void *allocate_thread(size_t size)
 {
-	void* ptr = mmap(NULL, size, PROT_READ | PROT_WRITE | PROT_EXEC,
-		MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+	void *ptr = mmap(NULL, size, PROT_READ | PROT_WRITE | PROT_EXEC,
+					 MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
 
 	CHECK((ptr == MAP_FAILED) ? -1 : 0);
 
@@ -118,18 +114,15 @@ void* allocate_thread(size_t size)
   Use malloc to allocate a thread. This is probably faster than  mmap, but
   cannot be made easily to 'detect' stack overflow.
  */
-void free_thread(void* ptr, size_t size) { free(ptr); }
+void free_thread(void *ptr, size_t size) { free(ptr); }
 
-void* allocate_thread(size_t size)
+void *allocate_thread(size_t size)
 {
-	void* ptr = aligned_alloc(SYSTEM_PAGE_SIZE, size);
+	void *ptr = aligned_alloc(SYSTEM_PAGE_SIZE, size);
 	CHECK((ptr == NULL) ? -1 : 0);
 	return ptr;
 }
 #endif
-
-
-
 
 /*
   This is the function that is used to start normal threads.
@@ -150,10 +143,10 @@ static void thread_start()
   Initialize and return a new TCB
 */
 
-TCB* spawn_thread(PCB* pcb, void (*func)())
+TCB *spawn_thread(PCB *pcb, void (*func)())
 {
 	/* The allocated thread size must be a multiple of page size */
-	TCB* tcb = (TCB*)allocate_thread(THREAD_SIZE);
+	TCB *tcb = (TCB *)allocate_thread(THREAD_SIZE);
 
 	/* Set the owner */
 	tcb->owner_pcb = pcb;
@@ -172,7 +165,7 @@ TCB* spawn_thread(PCB* pcb, void (*func)())
 	tcb->curr_cause = SCHED_IDLE;
 
 	/* Compute the stack segment address and size */
-	void* sp = ((void*)tcb) + THREAD_TCB_SIZE;
+	void *sp = ((void *)tcb) + THREAD_TCB_SIZE;
 
 	/* Init the context */
 	cpu_initialize_context(&tcb->context, sp, THREAD_STACK_SIZE, thread_start);
@@ -192,7 +185,7 @@ TCB* spawn_thread(PCB* pcb, void (*func)())
 /*
   This is called with sched_spinlock locked !
  */
-void release_TCB(TCB* tcb)
+void release_TCB(TCB *tcb)
 {
 #ifndef NVALGRIND
 	VALGRIND_STACK_DEREGISTER(tcb->valgrind_stack_id);
@@ -225,8 +218,8 @@ void release_TCB(TCB* tcb)
   Both of these structures are protected by @c sched_spinlock.
 */
 
-rlnode SCHED; /* The scheduler queue */
-rlnode TIMEOUT_LIST; /* The list of threads with a timeout */
+rlnode SCHED;					   /* The scheduler queue */
+rlnode TIMEOUT_LIST;			   /* The list of threads with a timeout */
 Mutex sched_spinlock = MUTEX_INIT; /* spinlock for scheduler queue */
 
 /* Interrupt handler for ALARM */
@@ -242,15 +235,16 @@ void ici_handler()
 
   *** MUST BE CALLED WITH sched_spinlock HELD ***
 */
-static void sched_register_timeout(TCB* tcb, TimerDuration timeout)
+static void sched_register_timeout(TCB *tcb, TimerDuration timeout)
 {
-	if (timeout != NO_TIMEOUT) {
+	if (timeout != NO_TIMEOUT)
+	{
 		/* set the wakeup time */
 		TimerDuration curtime = bios_clock();
 		tcb->wakeup_time = (timeout == NO_TIMEOUT) ? NO_TIMEOUT : curtime + timeout;
 
 		/* add to the TIMEOUT_LIST in sorted order */
-		rlnode* n = TIMEOUT_LIST.next;
+		rlnode *n = TIMEOUT_LIST.next;
 		for (; n != &TIMEOUT_LIST; n = n->next)
 			/* skip earlier entries */
 			if (tcb->wakeup_time < n->tcb->wakeup_time)
@@ -265,7 +259,7 @@ static void sched_register_timeout(TCB* tcb, TimerDuration timeout)
 
   *** MUST BE CALLED WITH sched_spinlock HELD ***
 */
-static void sched_queue_add(TCB* tcb)
+static void sched_queue_add(TCB *tcb)
 {
 	/* Insert at the end of the scheduling list */
 	rlist_push_back(&SCHED, &tcb->sched_node);
@@ -279,12 +273,13 @@ static void sched_queue_add(TCB* tcb)
 
 	*** MUST BE CALLED WITH sched_spinlock HELD ***
  */
-static void sched_make_ready(TCB* tcb)
+static void sched_make_ready(TCB *tcb)
 {
 	assert(tcb->state == STOPPED || tcb->state == INIT);
 
 	/* Possibly remove from TIMEOUT_LIST */
-	if (tcb->wakeup_time != NO_TIMEOUT) {
+	if (tcb->wakeup_time != NO_TIMEOUT)
+	{
 		/* tcb is in TIMEOUT_LIST, fix it */
 		assert(tcb->sched_node.next != &(tcb->sched_node) && tcb->state == STOPPED);
 		rlist_remove(&tcb->sched_node);
@@ -310,8 +305,9 @@ static void sched_wakeup_expired_timeouts()
 	/* Empty the timeout list up to the current time and wake up each thread */
 	TimerDuration curtime = bios_clock();
 
-	while (!is_rlist_empty(&TIMEOUT_LIST)) {
-		TCB* tcb = TIMEOUT_LIST.next->tcb;
+	while (!is_rlist_empty(&TIMEOUT_LIST))
+	{
+		TCB *tcb = TIMEOUT_LIST.next->tcb;
 		if (tcb->wakeup_time > curtime)
 			break;
 		sched_make_ready(tcb);
@@ -324,12 +320,12 @@ static void sched_wakeup_expired_timeouts()
 
   *** MUST BE CALLED WITH sched_spinlock HELD ***
 */
-static TCB* sched_queue_select(TCB* current)
+static TCB *sched_queue_select(TCB *current)
 {
 	/* Get the head of the SCHED list */
-	rlnode* sel = rlist_pop_front(&SCHED);
+	rlnode *sel = rlist_pop_front(&SCHED);
 
-	TCB* next_thread = sel->tcb; /* When the list is empty, this is NULL */
+	TCB *next_thread = sel->tcb; /* When the list is empty, this is NULL */
 
 	if (next_thread == NULL)
 		next_thread = (current->state == READY) ? current : &CURCORE.idle_thread;
@@ -342,7 +338,7 @@ static TCB* sched_queue_select(TCB* current)
 /*
   Make the process ready.
  */
-int wakeup(TCB* tcb)
+int wakeup(TCB *tcb)
 {
 	int ret = 0;
 
@@ -352,7 +348,8 @@ int wakeup(TCB* tcb)
 	/* To touch tcb->state, we must get the spinlock. */
 	Mutex_Lock(&sched_spinlock);
 
-	if (tcb->state == STOPPED || tcb->state == INIT) {
+	if (tcb->state == STOPPED || tcb->state == INIT)
+	{
 		sched_make_ready(tcb);
 		ret = 1;
 	}
@@ -369,14 +366,13 @@ int wakeup(TCB* tcb)
 /*
   Atomically put the current process to sleep, after unlocking mx.
  */
-void sleep_releasing(Thread_state state, Mutex* mx, enum SCHED_CAUSE cause,
-	TimerDuration timeout)
+void sleep_releasing(Thread_state state, Mutex *mx, enum SCHED_CAUSE cause,
+					 TimerDuration timeout)
 {
 	assert(state == STOPPED || state == EXITED);
 
-
 	int preempt = preempt_off;
-	TCB* tcb = CURTHREAD;
+	TCB *tcb = CURTHREAD;
 	Mutex_Lock(&sched_spinlock);
 
 	/* mark the thread as stopped or exited */
@@ -411,7 +407,7 @@ void yield(enum SCHED_CAUSE cause)
 	/* We must stop preemption but save it! */
 	int preempt = preempt_off;
 
-	TCB* current = CURTHREAD; /* Make a local copy of current process, for speed */
+	TCB *current = CURTHREAD; /* Make a local copy of current process, for speed */
 
 	Mutex_Lock(&sched_spinlock);
 
@@ -428,7 +424,7 @@ void yield(enum SCHED_CAUSE cause)
 	sched_wakeup_expired_timeouts();
 
 	/* Get next */
-	TCB* next = sched_queue_select(current);
+	TCB *next = sched_queue_select(current);
 	assert(next != NULL);
 
 	/* Save the current TCB for the gain phase */
@@ -437,7 +433,8 @@ void yield(enum SCHED_CAUSE cause)
 	Mutex_Unlock(&sched_spinlock);
 
 	/* Switch contexts */
-	if (current != next) {
+	if (current != next)
+	{
 		CURTHREAD = next;
 		cpu_swap_context(&current->context, &next->context);
 	}
@@ -464,7 +461,7 @@ void gain(int preempt)
 {
 	Mutex_Lock(&sched_spinlock);
 
-	TCB* current = CURTHREAD;
+	TCB *current = CURTHREAD;
 
 	/* Mark current state */
 	current->state = RUNNING;
@@ -472,10 +469,12 @@ void gain(int preempt)
 	current->rts = current->its;
 
 	/* Take care of the previous thread */
-	TCB* prev = CURCORE.previous_thread;
-	if (current != prev) {
+	TCB *prev = CURCORE.previous_thread;
+	if (current != prev)
+	{
 		prev->phase = CTX_CLEAN;
-		switch (prev->state) {
+		switch (prev->state)
+		{
 		case READY:
 			if (prev->type != IDLE_THREAD)
 				sched_queue_add(prev);
@@ -506,7 +505,8 @@ static void idle_thread()
 	yield(SCHED_IDLE);
 
 	/* We come here whenever we cannot find a ready thread for our core */
-	while (active_threads > 0) {
+	while (active_threads > 0)
+	{
 		cpu_core_halt();
 		yield(SCHED_IDLE);
 	}
@@ -527,7 +527,7 @@ void initialize_scheduler()
 
 void run_scheduler()
 {
-	CCB* curcore = &CURCORE;
+	CCB *curcore = &CURCORE;
 
 	/* Initialize current CCB */
 	curcore->id = cpu_core_id;
