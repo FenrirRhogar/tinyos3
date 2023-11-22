@@ -16,7 +16,7 @@ Tid_t sys_CreateThread(Task task, int argl, void* args)
     /* Initialize and return a new TCB */
     PCB* pcb = CURPROC;
     TCB* tcb;
-    tcb = spawn_thread(pcb, start_main_thread_process());
+    tcb = spawn_thread(pcb, start_main_thread_process);
     /*  and acquire a new PTCB */
     PTCB* ptcb;
     ptcb = (PTCB*)malloc(sizeof(PTCB)); /* Memory allocation for the new PTCB */
@@ -57,7 +57,7 @@ int sys_ThreadJoin(Tid_t tid, int* exitval)
 {
   PTCB* ptcb= (PTCB*) tid;
 
-  if(rlist_find(&CURPROC->ptcb_list_node,ptcb,NULL)==NULL)/*search the list of ptcbs looking for ptcb with the given id(key)*/
+  if(rlist_find(&CURPROC->ptcb_list,ptcb,NULL)==NULL)/*search the list of ptcbs looking for ptcb with the given id(key)*/
   {
     return -1;/*if it's null return error.*/
   }
@@ -85,7 +85,7 @@ int sys_ThreadJoin(Tid_t tid, int* exitval)
    }
 
    if(ptcb->refcount==0){
-    rlist_remove(&ptcb->ptcb_node_list)
+    rlist_remove(&ptcb->ptcb_list)
     free(ptcb);
    }
 
@@ -100,10 +100,18 @@ int sys_ThreadDetach(Tid_t tid)
 {
   PTCB* ptcb= (PTCB*) tid;
 
-  if(rlist_find(&CURPROC->ptcb_list_node,ptcb,NULL)==NULL){
+  if(rlist_find(&CURPROC->ptcb_list,ptcb,NULL)==NULL){
     return -1;
   }
-	return -1;
+
+  if(ptcb->exited==1){ //Check if the flag exited is on.If it is return error.
+    return -1;
+  }
+
+  ptcb->detached=1;//if everything is right make detach flag on.
+
+  kernel_broadcast(&ptcb->exit_cv);
+	return 0;
 }
 
 /**
