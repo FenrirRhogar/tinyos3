@@ -76,7 +76,7 @@ typedef struct process_thread_control_block {
 
   int exited;             /**< @brief Shows if the PTCB is exited */
   int detached;           /**< @brief hows if the PTCB is detached */
-  CondVar ecit_cv;        /**< @brief Condition variable */
+  CondVar exit_cv;        /**< @brief Condition variable */
 
   int refcount;           
 

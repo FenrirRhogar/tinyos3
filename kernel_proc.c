@@ -195,6 +195,22 @@ Pid_t sys_Exec(Task call, int argl, void* args)
   if(call != NULL) {
     newproc->main_thread = spawn_thread(newproc, start_main_thread);
     
+    /* Allocate memory*/
+    PTCB* ptcb = (PTCB*)malloc(sizeof(PTCB));
+    newproc->main_thread->ptcb = ptcb;
+    ptcb->tcb = newproc->main_thread;
+
+    /* PTCB initialization */
+    ptcb->task = call;
+    ptcb->args = args;
+    ptcb->argl = argl;
+    ptcb->exited = 0;
+    ptcb->detached = 0;
+    ptcb->exit_cv = COND_INIT;
+    ptcb->refcount = 0;
+    newproc->thread_count++;
+    
+
     wakeup(newproc->main_thread);
   }
 
