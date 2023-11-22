@@ -130,12 +130,12 @@ void start_main_thread_process()
 {
   int exitval;
 
-  Task call = CURPROC->main_thread->ptcb->task;
-  int argl = CURPROC->main_thread->ptcb->argl;
-  void *args = CURPROC->main_thread->ptcb->args;
+  Task call = cur_thread()->ptcb->task;
+  int argl = cur_thread()->ptcb->argl;
+  void *args = cur_thread()->ptcb->args;
 
   exitval = call(argl, args);
-  ThreadExit(exitval);
+  sys_ThreadExit(exitval);
 }
 
 /*
@@ -198,7 +198,7 @@ Pid_t sys_Exec(Task call, int argl, void *args)
     newproc->main_thread = spawn_thread(newproc, start_main_thread);
 
     /* Allocate memory*/
-    PTCB *ptcb = (PTCB *)malloc(sizeof(PTCB));
+    PTCB *ptcb = (PTCB *)xmalloc(sizeof(PTCB));
     newproc->main_thread->ptcb = ptcb;
     ptcb->tcb = newproc->main_thread;
 
