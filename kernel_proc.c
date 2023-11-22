@@ -130,9 +130,9 @@ void start_main_thread_process()
 {
   int exitval;
 
-  Task call = CURTHREAD->ptcb->task;
-  int argl = CURTHREAD->argl;
-  void *args = CURTHREAD->args;
+  Task call = CURPROC->main_thread->ptcb->task;
+  int argl = CURPROC->main_thread->ptcb->argl;
+  void *args = CURPROC->main_thread->ptcb->args;
 
   exitval = call(argl, args);
   ThreadExit(exitval);
