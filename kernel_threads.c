@@ -29,6 +29,7 @@
 
 Tid_t sys_CreateThread(Task task, int argl, void *args)
 {
+  if(task!=NULL){
   /* Initialize and return a new TCB */
   PCB *pcb = CURPROC;
   TCB *tcb;
@@ -49,13 +50,15 @@ Tid_t sys_CreateThread(Task task, int argl, void *args)
   ptcb->detached = 0;
   ptcb->exit_cv = COND_INIT;
   ptcb->refcount = 0;
-  // rlnode_init(&ptcb->ptcb_node_list, ptcb); /* Initialize node list with PTCB being the node key */
-  ptcb->ptcb_node_list = *rlnode_init(&ptcb->ptcb_node_list, ptcb);
-  rlist_push_back(&pcb->ptcb_list, &ptcb->ptcb_node_list);
+   rlnode_init(&ptcb->ptcb_node_list, ptcb); /* Initialize node list with PTCB being the node key */
+  //ptcb->ptcb_node_list = *rlnode_init(&ptcb->ptcb_node_list, ptcb);
+  rlist_push_back(&CURPROC->ptcb_list, &ptcb->ptcb_node_list);
   pcb->thread_count++;
   wakeup(tcb);
 
   return (Tid_t)ptcb;
+}
+return NOTHREAD;
 }
 
 /**
@@ -72,6 +75,7 @@ Tid_t sys_ThreadSelf()
 int sys_ThreadJoin(Tid_t tid, int *exitval)
 {
   PTCB *ptcb = (PTCB *)tid;
+  //PCB* pcb= CURPROC;
 
   if (rlist_find(&CURPROC->ptcb_list, ptcb, NULL) == NULL) /*search the list of ptcbs looking for ptcb with the given id(key)*/
   {
@@ -86,10 +90,10 @@ int sys_ThreadJoin(Tid_t tid, int *exitval)
     return -1;
   }
 
-  if (ptcb->exited == 1)
+  /*if (ptcb->exited == 1)
   {
     return -1;
-  }
+  }*/
 
   ptcb->refcount++; /*increase value of refcount because we refered to this ptcb*/
 
@@ -98,6 +102,7 @@ int sys_ThreadJoin(Tid_t tid, int *exitval)
     kernel_wait(&ptcb->exit_cv, SCHED_USER);
   }
   ptcb->refcount--;
+
   if (exitval != NULL)
   {
     *exitval = ptcb->exitval;
@@ -129,10 +134,14 @@ int sys_ThreadDetach(Tid_t tid)
     return -1;
   }
 
-  ptcb->detached = 1; // if everything is right make detach flag on.
-  /* ptcb->refcount=0; mallon */
+  /*if(ptcb->detached==1){
+    return -1;
+  }*/
 
+  ptcb->detached = 1; // if everything is right make detach flag on.
   kernel_broadcast(&ptcb->exit_cv);
+  //ptcb->refcount=0;
+
   return 0;
 }
 
