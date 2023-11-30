@@ -428,7 +428,6 @@ void yield(enum SCHED_CAUSE cause)
 
 	Mutex_Lock(&sched_spinlock);
 
-	// klemmeno
 	/* After MAX_CALLS of yield() we boost every thread by 1 */
 	if (count < MAX_CALLS)
 	{
@@ -457,7 +456,6 @@ void yield(enum SCHED_CAUSE cause)
 		/*reset count to 0*/
 		count = 0;
 	}
-	// telos klemmenou
 
 	/* Update CURTHREAD state */
 	if (current->state == RUNNING)
