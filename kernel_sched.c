@@ -34,6 +34,8 @@ CCB cctx[MAX_CORES];
 */
 #define CURTHREAD (CURCORE.current_thread)
 
+#define PRIORITY_QUEUES 50
+#define MAX_CALLS 1000
 /*
 	This can be used in the preemptive context to
 	obtain the current thread.
@@ -218,9 +220,10 @@ void release_TCB(TCB *tcb)
   Both of these structures are protected by @c sched_spinlock.
 */
 
-rlnode SCHED;					   /* The scheduler queue */
+rlnode SCHED[PRIORITY_QUEUES];	   /* The scheduler queue */
 rlnode TIMEOUT_LIST;			   /* The list of threads with a timeout */
 Mutex sched_spinlock = MUTEX_INIT; /* spinlock for scheduler queue */
+int count = 0;
 
 /* Interrupt handler for ALARM */
 void yield_handler() { yield(SCHED_QUANTUM); }
@@ -262,7 +265,7 @@ static void sched_register_timeout(TCB *tcb, TimerDuration timeout)
 static void sched_queue_add(TCB *tcb)
 {
 	/* Insert at the end of the scheduling list */
-	rlist_push_back(&SCHED, &tcb->sched_node);
+	rlist_push_back(&SCHED[tcb->priority], &tcb->sched_node); // Insert tcb at the end of the queue with its current priority
 
 	/* Restart possibly halted cores */
 	cpu_core_restart_one();
@@ -322,8 +325,22 @@ static void sched_wakeup_expired_timeouts()
 */
 static TCB *sched_queue_select(TCB *current)
 {
+	int i = PRIORITY_QUEUES - 1;
+	/* Searching in queues until we find a non empty one */
+	while (i > 0)
+	{
+		if (is_rlist_empty(&SCHED[i]))
+		{
+			i--;
+		}
+		else //found it!
+		{
+			break;
+		}
+	}
+
 	/* Get the head of the SCHED list */
-	rlnode *sel = rlist_pop_front(&SCHED);
+	rlnode *sel = rlist_pop_front(&SCHED[i]);
 
 	TCB *next_thread = sel->tcb; /* When the list is empty, this is NULL */
 
@@ -411,6 +428,37 @@ void yield(enum SCHED_CAUSE cause)
 
 	Mutex_Lock(&sched_spinlock);
 
+	// klemmeno
+	/* After MAX_CALLS of yield() we boost every thread by 1 */
+	if (count < MAX_CALLS)
+	{
+		count++;
+	}
+	else	// we have reached MAX_CALLS
+	{
+		/*Increasing the priority of each queue one by one*/
+
+		rlnode *temp = NULL;	//temporary "queue"
+		int i = PRIORITY_QUEUES - 1;
+
+		/*run PRIORITY_QUEUES-1 times*/
+		while (i >= 0)
+		{
+			/*rlnode_ptr node from util.h(line 320)--reference of a node of the scheduler*/
+			temp = SCHED[i].node;
+			/*while queue is not NULL, increase priority one by one and go to the queue below*/
+			while (temp != NULL)
+			{
+				temp->tcb->priority++;
+				temp = temp->next;
+			}
+			i--;
+		}
+		/*reset count to 0*/
+		count = 0;
+	}
+	// telos klemmenou
+
 	/* Update CURTHREAD state */
 	if (current->state == RUNNING)
 		current->state = READY;
@@ -419,6 +467,33 @@ void yield(enum SCHED_CAUSE cause)
 	current->rts = remaining;
 	current->last_cause = current->curr_cause;
 	current->curr_cause = cause;
+
+	/* Case 2: SCHED_QUANTUM - Thread quantum has expired */
+	if (current->curr_cause == SCHED_QUANTUM)
+	{
+		if (current->priority > 0)
+		{
+			current->priority--;
+		}
+	}
+
+	/* Case 3: SCHEND_IO - Interactive thread (I/O) */
+	if (current->curr_cause == SCHED_IO)
+	{
+		if (current->priority < PRIORITY_QUEUES - 1)
+		{
+			current->priority++;
+		}
+	}
+
+	/* Case 4: SCHED_MUTEX - Priority inversion */
+	if (current->curr_cause == current->last_cause && current->last_cause == SCHED_MUTEX)
+	{
+		if (current->priority > 0)
+		{
+			current->priority--;
+		}
+	}
 
 	/* Wake up threads whose sleep timeout has expired */
 	sched_wakeup_expired_timeouts();
@@ -521,7 +596,10 @@ static void idle_thread()
  */
 void initialize_scheduler()
 {
-	rlnode_init(&SCHED, NULL);
+	for (int i = 0; i < PRIORITY_QUEUES; i++)
+	{
+		rlnode_init(&SCHED[i], NULL);
+	}
 	rlnode_init(&TIMEOUT_LIST, NULL);
 }
 

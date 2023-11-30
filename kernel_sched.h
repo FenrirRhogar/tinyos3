@@ -109,6 +109,8 @@ typedef struct thread_control_block {
 	Thread_state state; /**< @brief The state of the thread */
 	Thread_phase phase; /**< @brief The phase of the thread */
 
+  int priority; /**< @brief The tcb priority for MLFQ */
+
 	void (*thread_func)(); /**< @brief The initial function executed by this thread */
 
 	TimerDuration wakeup_time; /**< @brief The time this thread will be woken up by the scheduler */
