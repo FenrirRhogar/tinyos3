@@ -34,8 +34,8 @@ CCB cctx[MAX_CORES];
 */
 #define CURTHREAD (CURCORE.current_thread)
 
-#define PRIORITY_QUEUES 50
-#define MAX_CALLS 1000
+#define PRIORITY_QUEUES 50	// number of queues
+#define MAX_CALLS 1000	// max calls of yield() until we boost each thread's priority by 1
 /*
 	This can be used in the preemptive context to
 	obtain the current thread.
@@ -223,7 +223,7 @@ void release_TCB(TCB *tcb)
 rlnode SCHED[PRIORITY_QUEUES];	   /* The scheduler queue */
 rlnode TIMEOUT_LIST;			   /* The list of threads with a timeout */
 Mutex sched_spinlock = MUTEX_INIT; /* spinlock for scheduler queue */
-int count = 0;
+int count = 0;	/* the counter we use to boost threads */
 
 /* Interrupt handler for ALARM */
 void yield_handler() { yield(SCHED_QUANTUM); }
@@ -428,32 +428,25 @@ void yield(enum SCHED_CAUSE cause)
 
 	Mutex_Lock(&sched_spinlock);
 
-	/* After MAX_CALLS of yield() we boost every thread by 1 */
+	/* After MAX_CALLS of yield() we BOOST every thread by 1 */
 	if (count < MAX_CALLS)
 	{
 		count++;
 	}
 	else	// we have reached MAX_CALLS
 	{
-		/*Increasing the priority of each queue one by one*/
+		rlnode *temp = NULL;	// temporary "queue" (node)
 
-		rlnode *temp = NULL;	//temporary "queue"
-		int i = PRIORITY_QUEUES - 1;
-
-		/*run PRIORITY_QUEUES-1 times*/
-		while (i >= 0)
+		for (int i = PRIORITY_QUEUES - 1; i >= 0; i--)
 		{
-			/*rlnode_ptr node from util.h(line 320)--reference of a node of the scheduler*/
-			temp = SCHED[i].node;
-			/*while queue is not NULL, increase priority one by one and go to the queue below*/
-			while (temp != NULL)
+			temp = SCHED[i].node;	// pointer to the i node
+
+			while (temp != NULL)	// checking if node is not null
 			{
 				temp->tcb->priority++;
 				temp = temp->next;
 			}
-			i--;
 		}
-		/*reset count to 0*/
 		count = 0;
 	}
 
@@ -467,7 +460,7 @@ void yield(enum SCHED_CAUSE cause)
 	current->curr_cause = cause;
 
 	/* Case 2: SCHED_QUANTUM - Thread quantum has expired */
-	if (current->curr_cause == SCHED_QUANTUM)
+	if (current->curr_cause == SCHED_QUANTUM)	// thread use the quantum and has not completed its job
 	{
 		if (current->priority > 0)
 		{
@@ -476,7 +469,7 @@ void yield(enum SCHED_CAUSE cause)
 	}
 
 	/* Case 3: SCHEND_IO - Interactive thread (I/O) */
-	if (current->curr_cause == SCHED_IO)
+	if (current->curr_cause == SCHED_IO)	// thread uses I/O but the quantum has passed
 	{
 		if (current->priority < PRIORITY_QUEUES - 1)
 		{
@@ -485,7 +478,7 @@ void yield(enum SCHED_CAUSE cause)
 	}
 
 	/* Case 4: SCHED_MUTEX - Priority inversion */
-	if (current->curr_cause == current->last_cause && current->last_cause == SCHED_MUTEX)
+	if (current->curr_cause == current->last_cause && current->last_cause == SCHED_MUTEX)	// mutex is locked by a lower priority thread
 	{
 		if (current->priority > 0)
 		{
