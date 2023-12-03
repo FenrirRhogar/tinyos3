@@ -90,6 +90,11 @@ int sys_ThreadJoin(Tid_t tid, int *exitval)
     return -1;
   }
 
+  /*if (ptcb->exited == 1)
+  {
+    return -1;
+  }*/
+
   ptcb->refcount++; /*increase value of refcount because we refered to this ptcb*/
 
   while (ptcb->exited == 0 && ptcb->detached == 0)
@@ -97,11 +102,6 @@ int sys_ThreadJoin(Tid_t tid, int *exitval)
     kernel_wait(&ptcb->exit_cv, SCHED_USER);
   }
   ptcb->refcount--;
-
-  if (ptcb->detached == 1) /*if the thread that calling thread wants to join is detached return error*/
-  {
-    return -1;
-  }
 
   if (exitval != NULL)
   {
