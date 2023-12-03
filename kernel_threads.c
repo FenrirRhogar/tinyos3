@@ -103,6 +103,11 @@ int sys_ThreadJoin(Tid_t tid, int *exitval)
   }
   ptcb->refcount--;
 
+  if (ptcb->detached == 1) /*if the thread that calling thread wants to join is detached return error*/
+  {
+    return -1;
+  }
+
   if (exitval != NULL)
   {
     *exitval = ptcb->exitval;
