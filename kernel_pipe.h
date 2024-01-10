@@ -15,8 +15,9 @@ typedef struct pipe_control_block{
 	CondVar has_space;
 	CondVar has_data;
 
-	int W_position;
+	int w_position;
 	int r_position;
+	int current_size;
 
 	char buffer[PIPE_BUFFER_SIZE];
 }PIPE_CB;

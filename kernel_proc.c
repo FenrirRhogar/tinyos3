@@ -337,7 +337,127 @@ void sys_Exit(int exitval)
   sys_ThreadExit(exitval);
 }
 
+/*--------------------------System Info--------------------------*/
+
+int procinfo_read(void* procInfo_t, char* buf, unsigned int size);
+int procinfo_close();
+
+typedef struct procinfo_cb
+{
+  procinfo procinfo;
+  int PCB_cursor;
+}procinfo_cb;
+
+// File operations for procinfo
+static file_ops procinfo_file_ops = {
+  .Read = procinfo_read,
+  .Close = procinfo_close
+};
+
 Fid_t sys_OpenInfo()
 {
-  return NOFILE;
+  Fid_t fid[1];
+  FCB* fcb[1];
+
+  // Search for one FCB and one Fid
+  if(FCB_reserve(1, fid, fcb) == 0){
+      return NOFILE;
+  }
+
+  // Memory allocation for new info
+  procinfo_cb* info = (procinfo_cb*)xmalloc(sizeof(procinfo_cb));
+
+  // Checking if allocation was succesful
+  if(info == NULL){
+    return NOFILE;
+  }
+
+  // Initialization
+  info->PCB_cursor=0;
+
+  // Setting the FCB
+  fcb[0]->streamobj = info;
+  fcb[0]->streamfunc = &procinfo_file_ops;
+
+  return fid[0];
+}
+
+int procinfo_read(void* procinfo1, char* buf, unsigned int size)
+{
+  if(procinfo1 == NULL){
+    return -1;
+  }
+
+  procinfo_cb* proc_cb=(procinfo_cb*) procinfo1;  // Cast the void* to procinfo_cb*
+
+  if(proc_cb == NULL){
+    return -1;
+  }
+
+  /*Because we call it in tinyos_shell so it can reach MAX_PROC*/
+  if(proc_cb->PCB_cursor==MAX_PROC){  // If we reach the end of the table, we return 0
+    return 0;
+  }
+
+  if(proc_cb->PCB_cursor>MAX_PROC){   // If we went over the end of the table, we return -1
+    return -1;
+  }
+
+  /*Cross the PT table until we find a process that is not FREE*/
+  while(PT[proc_cb->PCB_cursor].pstate == FREE){
+
+    // Move to the next PCB
+    proc_cb->PCB_cursor++;
+
+    // If we reach the end of the table, we return 0
+    if(proc_cb->PCB_cursor==MAX_PROC){
+      return 0;
+    }
+  }
+
+  proc_cb->procinfo.pid=proc_cb->PCB_cursor;
+
+  /*Get the pid of the parent*/
+  proc_cb->procinfo.ppid=get_pid((PT[proc_cb->PCB_cursor]).parent);
+
+  /*We make the pstate of the current process to be ALIVE and we put it in the information of the procinfo*/
+  proc_cb->procinfo.alive=(PT[proc_cb->PCB_cursor].pstate==ALIVE);
+
+  /*Make thread_count of the procinfo (tinyos.h) to be the threadcount of the current process*/
+  proc_cb->procinfo.thread_count=PT[proc_cb->PCB_cursor].thread_count;
+
+  /*Make the main_task of the procinfo (tinyos.h) to be the main_task of the current process*/
+  proc_cb->procinfo.main_task=PT[proc_cb->PCB_cursor].main_task;
+
+  /*Make the argl of the procinfo (tinyos.h) to be the argl of the current process*/
+  proc_cb->procinfo.argl=PT[proc_cb->PCB_cursor].argl;
+
+
+  int size_of_argl;
+
+  if(proc_cb->procinfo.argl>PROCINFO_MAX_ARGS_SIZE){
+    size_of_argl=PROCINFO_MAX_ARGS_SIZE;
+  }else{
+    size_of_argl=proc_cb->procinfo.argl;
+  }
+
+
+  memcpy(proc_cb->procinfo.args,(char*)PT[proc_cb->PCB_cursor].args, sizeof(char)*size_of_argl);
+  memcpy(buf, (char*)&proc_cb->procinfo,sizeof(procinfo));
+
+  /*Move to the next PCB*/
+  proc_cb->PCB_cursor++;
+
+  return 1;
+}
+
+int procinfo_close(void* procinfo_cb)
+{
+  if(procinfo_cb==NULL){
+    return -1;
+  }
+
+  free(procinfo_cb);
+
+  return 1;
 }

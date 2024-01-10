@@ -285,7 +285,7 @@ Pid_t WaitChild(Pid_t pid, int* exitval);
  */
 Pid_t GetPid(void);
 
-/** @brief Return the PID of the caller'P parent.
+/** @brief Return the PID of the caller's parent.
 
  This function returns the pid of the parent of the current process.
  */
