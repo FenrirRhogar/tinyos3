@@ -566,7 +566,7 @@ typedef int16_t port_t;
 	@param port the port the new socket will be bound to
 	@returns a file id for the new socket, or NOFILE on error. Possible
 		reasons for error:
-		- the port is iilegal
+		- the port is illegal
 		- the available file ids for the process are exhausted
 */
 Fid_t Socket(port_t port);
