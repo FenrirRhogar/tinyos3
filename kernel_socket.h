@@ -11,6 +11,7 @@ typedef struct unbound_socket unbound_socket;
 typedef struct peer_socket peer_socket;
 typedef struct connection_request connection_request;
 
+SCB* PORT_MAP[MAX_PORT]; // Map of port numbers to SCBs
 
 /**
  * @brief Enumeration representing different types of sockets.
