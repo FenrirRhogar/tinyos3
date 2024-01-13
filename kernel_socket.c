@@ -306,88 +306,102 @@ Fid_t sys_Accept(Fid_t lsock)
 
 int sys_Connect(Fid_t sock, port_t port, timeout_t timeout)
 {
-    SCB* scb_peer = get_scb(sock);
+	int time;
 
-    if(scb_peer == NULL  scb_peer->type != SOCKET_UNBOUND  port<= 0  port>= MAX_PORT+1){
+	if (sock < 0 || sock > MAX_FILEID-1){
+		return -1; // Not legal socket
+	}
+	if(port < 0 || port > MAX_PORT){
+		return -1; //not legal port
+	}
+
+    FCB *fcb = get_fcb(sock);
+
+    if(fcb == NULL){
         return -1;
     }
+	
+	SCB* scb =fcb->streamobj;
 
-    SCB* scb_server = PORT_MAP[port];
-
-    if(scb_server == NULL  scb_server->type != SOCKET_LISTENER){
+	if(scb->type != SOCKET_UNBOUND){
+		return -1;
+	}
+	if(scb==NULL){
         return -1;
-    }
+	}	
+	if(scb->type != SOCKET_LISTENER){
+		return -1;
+	}
 
-    CR* cr = (CR*)xmalloc(sizeof(CR));
-    cr->admitted =0;
-    cr->peer =scb_peer;
-    cr-> connected_cv = COND_INIT;
-    rlnode_init(&cr->queue_node, cr);
-    rlist_push_back(&scb_server->listener_s.queue, &cr->queue_node);
-    kernel_signal(&scb_server->listener_s.req_available);
+	scb->refcount++;
 
-    scb_peer->refcount++;
+	connection_request* node =(connection_request*)xmalloc(sizeof(connection_request));
+	node->peer=scb;
+	node->fid =sock;
+	rlnode_init(&node->queue_node,node);
+	node->admitted=0;
+	node->connected_cv = COND_INIT;
+    
+	rlist_push_back(&(PORT_MAP[port]->socket_union.listener_s->req_available),&node->queue_node);
 
-    if(timeout > 0){
-        kernel_timedwait(&cr->connected_cv, SCHED_IO, timeout);
-    }
-    else{
-        kernel_wait(&cr->connected_cv, SCHED_IO)
-    }
+	kernel_broadcast(&(PORT_MAP[port]->socket_union.listener_s->queue));
 
-    decref_socket(scb_peer);
-
-    int returnValue;
-
-    if(cr->admitted == 0){
-        returnValue = -1;
-    }
-    else{
-        returnValue = 0;
-    }
-
-    rlist_remove(&cr->queue_node);
-    free(cr);
-
-
-    return returnValue;
+    while(node->admitted==0){
+		time=kernel_timedwait(&node->connected_cv,SCHED_PIPE,timeout);
+        if(!time){
+			return -1;
+		}
+	}
+	scb->refcount--;
+	free(node);
+	
+///////////////////////////////////////
+return 0;
 }
 
 
 int sys_ShutDown(Fid_t sock, shutdown_mode how)
 {
-	FCB *fcb = get_fcb(sock);
-	if(fcb==NULL){
-		return -1; //wrong fcb
+	if (sock < 0 || sock > MAX_FILEID-1){
+		return -1; // Not legal socket
 	}
 	if(how<1 || how>3){
 		return -1; //wrong mode
 	}
 
+	FCB *fcb = get_fcb(sock);
+	if(fcb==NULL){
+		return -1; //wrong fcb
+	}
+
 	SCB* scb = fcb->streamobj;
     //if we have socket and 
-	if(scb!=NULL && scb->type==SOCKET_PEER){
+	if(scb->refcount!=0 && scb->type==SOCKET_PEER){
         int r,w;
 		// case on shutdown mode
 		switch(how)
 		{
-		case SHUTDOWN_READ:
-		return pipe_reader_close(scb->socket_union.peer_s->read_pipe); //close socket's read_pipe
-			break;
-		case SHUTDOWN_WRITE:
-		return pipe_writer_close(scb->socket_union.peer_s->write_pipe);//close socket's write_pipe
-			break;
-		case SHUTDOWN_BOTH://close socket's both of read-write pipes
-            r=pipe_reader_close(scb->socket_union.peer_s->read_pipe);
-			w=pipe_writer_close(scb->socket_union.peer_s->write_pipe);
+		  case SHUTDOWN_READ:
+		    r=pipe_reader_close(scb->socket_union.peer_s->read_pipe); //close socket's read_pipe
+			return r;
+		    break;
+
+		  case SHUTDOWN_WRITE:
+		    w=pipe_writer_close(scb->socket_union.peer_s->write_pipe);//close socket's write_pipe
+		    return w;
+            break;
+
+		  case SHUTDOWN_BOTH://close socket's both of read-write pipes
+            
 			//checking 
-			if((r+w)==NULL){
+			if((r+w)==0){
 				return 0; //correct
 			}
 			else
 			return -1;
 			break;
-		default: 
+
+		  default: 
 			return -1;
 		}
 	}

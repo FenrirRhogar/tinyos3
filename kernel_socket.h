@@ -71,6 +71,7 @@ typedef struct socket_control_block {
  * and the queue node for maintaining the request in a queue.
  */
 typedef struct connection_request {
+    Fid_t fid;
     int admitted;           /**< Flag indicating if the request has been admitted */
     SCB* peer;              /**< Pointer to the peer Socket Control Block */
     CondVar connected_cv;   /**< Condition variable for signaling connection status */
