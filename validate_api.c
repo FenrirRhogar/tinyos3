@@ -1876,8 +1876,8 @@ BOOT_TEST(test_accept_fails_on_exhausted_fid,
 	)
 {
 	Fid_t lsock = Socket(100);
-	ASSERT(lsock!=NOFILE);
-	ASSERT(Listen(lsock)==0);
+	ASSERT(lsock != NOFILE);
+	ASSERT(Listen(lsock) == 0);
 
 	/* If MAX_FILEID is odd, allocate an extra fid */
 	if( (MAX_FILEID & 1) == 1 )  OpenNull();

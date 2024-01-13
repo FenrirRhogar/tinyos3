@@ -306,57 +306,59 @@ Fid_t sys_Accept(Fid_t lsock)
 
 int sys_Connect(Fid_t sock, port_t port, timeout_t timeout)
 {
-	int time;
-
-	if (sock < 0 || sock > MAX_FILEID-1){
-		return -1; // Not legal socket
-	}
-	if(port < 0 || port > MAX_PORT){
-		return -1; //not legal port
+	if(sock < 0 || sock > MAX_FILEID){
+		return -1;
 	}
 
-    FCB *fcb = get_fcb(sock);
+	if(port < 1 || port > MAX_PORT){
+		return -1;
+	}
 
-    if(fcb == NULL){
+	SCB* scb_peer = get_fcb(sock)->streamobj;
+
+    if(scb_peer == NULL || scb_peer->type != SOCKET_UNBOUND){
+        return NOFILE;
+    }
+
+    SCB* scb_server = PORT_MAP[port];
+
+    if(scb_server == NULL || scb_server->type != SOCKET_LISTENER){
         return -1;
     }
-	
-	SCB* scb =fcb->streamobj;
 
-	if(scb->type != SOCKET_UNBOUND){
-		return -1;
-	}
-	if(scb==NULL){
-        return -1;
-	}	
-	if(scb->type != SOCKET_LISTENER){
-		return -1;
-	}
+    connection_request* req = (connection_request*)xmalloc(sizeof(connection_request));
+    req->admitted = 0;
+    req->peer =scb_peer;
+    req-> connected_cv = COND_INIT;
+    rlnode_init(&req->queue_node, req);
+    rlist_push_back(&scb_server->socket_union.listener_s->queue, &req->queue_node);
+    kernel_signal(&scb_server->socket_union.listener_s->req_available);
 
-	scb->refcount++;
+    scb_peer->refcount++;
 
-	connection_request* node =(connection_request*)xmalloc(sizeof(connection_request));
-	node->peer=scb;
-	node->fid =sock;
-	rlnode_init(&node->queue_node,node);
-	node->admitted=0;
-	node->connected_cv = COND_INIT;
-    
-	rlist_push_back(&(PORT_MAP[port]->socket_union.listener_s->req_available),&node->queue_node);
+    if(timeout > 0){
+        kernel_timedwait(&req->connected_cv, SCHED_IO, timeout);
+    }
+    else{
+        kernel_wait(&req->connected_cv, SCHED_IO);
+    }
 
-	kernel_broadcast(&(PORT_MAP[port]->socket_union.listener_s->queue));
+	scb_peer->refcount--;
 
-    while(node->admitted==0){
-		time=kernel_timedwait(&node->connected_cv,SCHED_PIPE,timeout);
-        if(!time){
-			return -1;
-		}
-	}
-	scb->refcount--;
-	free(node);
-	
-///////////////////////////////////////
-return 0;
+    int returnValue;
+
+    if(req->admitted == 0){
+        returnValue = -1;
+    }
+    else{
+        returnValue = 0;
+    }
+
+    rlist_remove(&req->queue_node);
+    free(req);
+
+
+    return returnValue;
 }
 
 
@@ -370,7 +372,7 @@ int sys_ShutDown(Fid_t sock, shutdown_mode how)
 	}
 
 	FCB *fcb = get_fcb(sock);
-	if(fcb==NULL){
+	if(fcb == NULL){
 		return -1; //wrong fcb
 	}
 

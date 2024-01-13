@@ -625,7 +625,7 @@ Fid_t Accept(Fid_t lsock);
 	@brief Create a connection to a listener at a specific port.
 
 	Given a socket @c sock and @c port, this call will attempt to establish
-	a connection to a listening socket on that port. If sucessful, the
+	a connection to a listening socket on that port. If successful, the
 	@c sock stream is connected to the new stream created by the listener.
 
 	The two connected sockets communicate by virtue of two pipes of opposite directions, 
